@@ -10,7 +10,6 @@ import time
 import sys
 from queue import Queue
 
-import keyboard
 import numpy as np
 import sounddevice as sd
 import soundfile as sf
@@ -18,6 +17,9 @@ from termcolor import colored
 
 scimia_enabled = True
 BAR_LENGTH = 60
+ALRT_TIMEOUT = 10.0
+alarmt_ts = time.time() - ALRT_TIMEOUT
+current_ts = time.time()
 
 os.system('color')
 os.system('mode con: cols=65 lines=32')
@@ -41,28 +43,8 @@ else:
     val = input(" Set microphone treshold: ")
 
 print(" Scimia is alarmed... ")
-print(r"""
-                                   __
-                                 / _,\
-                                 \_\
-                      ,,,,    _,_)  #      /)
-                     (= =)D__/    __/     //
-                    C/^__)/     _(    ___//
-                      \_,/  -.   '-._/,--'
-                _\\_,  /           -//.
-                 \_ \_/  -,._ _     ) )
-                   \/    /    )    / /
-                   \-__,/    (    ( (
-                              \.__,-)\_
-                               )\_ / -(
-              b'ger           / -(////
-                             ////
-                             
-
-""")
 
 max_audio_value = int(val)
-print(" p to pause, give a banana to Scimia at paypal.me/Novecento99" + "\033[F" + "\033[F" + "\033[F")
 
 # Create the queue that will hold the audio chunks
 audio_queue = Queue()
@@ -93,13 +75,6 @@ with sd.Stream(callback=callback):
             loudness = np.linalg.norm(audio_queue.get()) * 10
             bar = int(loudness * (BAR_LENGTH / max_audio_value))
 
-            # Check if we need to pause
-            if keyboard.is_pressed('p'):
-                # Flip the boolean
-                scimia_enabled = not scimia_enabled
-                print(f"\n\n p to {'pause' if scimia_enabled else 'resume'} " + "\033[F" * 3)
-                time.sleep(0.3)
-
             # If we are quiet, then print the audio bar
             if loudness < max_audio_value:
                 print(' [' + '|' * bar + ' ' * (BAR_LENGTH - bar) + ']', end='\r')
@@ -108,6 +83,13 @@ with sd.Stream(callback=callback):
                 print(colored(' [' + '!' * BAR_LENGTH + ']', 'red'), end='\r')
                 # Play a sound to the user to let them know that they are loud
                 if scimia_enabled:
+                    current_ts = time.time()
+                    # play sound only if it played more than X second ago
+                    if current_ts < alarmt_ts + ALRT_TIMEOUT:
+                        print(f'Skip. current: {current_ts}, alarm {alarmt_ts}, diff: {current_ts-alarmt_ts}')
+                        continue
+                    print(f'Alarm. alarm_ts: {alarmt_ts}, alarm_ts+10: {alarmt_ts + 10.0}, current_ts: {current_ts}, curent-alarm: {current_ts-alarmt_ts}')
+                    alarmt_ts = current_ts
                     sd.play(data, fs)
                     sd.wait()
     except KeyboardInterrupt:
